@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Coordenação de Curso - Sistema de Escalas Avançado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        .card-shadow {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        .card-shadow:hover {
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        .grid-cell {
+            border: 1px solid #e5e7eb;
+            min-height: 80px;
+            padding: 12px;
+        }
+        .grid-header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            padding: 16px 8px;
+            border: 1px solid #1e3a8a;
+        }
+        .time-cell {
+            background: #f3f4f6;
+            font-weight: 700;
+            text-align: center;
+            vertical-align: middle;
+            font-size: 14px;
+            color: #1f2937;
+        }
+        .event-cell {
+            background: white;
+            vertical-align: top;
+        }
+        .event-cell:hover {
+            background: #f9fafb;
+        }
+        .event-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            margin: 4px 0;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+        }
+        .event-info {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        #weeklyGrid {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .badge-professor {
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            color: white;
+        }
+        .badge-monitor {
+            background: linear-gradient(135deg, #059669, #047857);
+            color: white;
+        }
+        .badge-professor-aproximado {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white;
+        }
+        .badge-professor-ocorrencia {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+        }
+        .badge-professor-coord {
+            background: linear-gradient(135deg, #0891b2, #0e7490);
+            color: white;
+        }
+        .badge-default {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            color: white;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: 16px;
+            width: 95%;
+            max-width: 1400px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0 15px;
+        }
+        .close:hover,
+        .close:focus {
+            color: #000;
+        }
+        .conflict-card {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border: 2px solid #ef4444;
+        }
+        .workload-card {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border: 2px solid #3b82f6;
+        }
+        .workload-card-overload {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 3px solid #f59e0b;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+        .overload-badge {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 text-white shadow-2xl">
+        <div class="container mx-auto px-6 py-8">
+            <div class="flex items-center gap-4">
+                <div class="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-4xl font-bold tracking-tight">Painel de Coordenação de Curso</h1>
+                    <p class="text-blue-100 mt-2 text-lg">Sistema Avançado de Gestão e Análise de Escalas</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container mx-auto px-6 py-8">
+
+        <!-- Upload Section -->
+        <div class="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <div class="bg-blue-100 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                </div>
+                Carregar Dados de Escala
+            </h2>
+            <div class="flex items-center gap-6 flex-wrap">
+                <label class="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 cursor-pointer transition-all shadow-lg hover:shadow-xl font-semibold text-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <span>Selecionar Arquivo CSV</span>
+                    <input type="file" id="csvFileInput" accept=".csv" class="hidden">
+                </label>
+                <div id="fileStatus" class="text-gray-600 flex items-center gap-3 text-lg font-medium"></div>
+            </div>
+        </div>
+
+        <!-- Analysis Tools -->
+        <div id="analysisSection" class="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-200 hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <div class="bg-purple-100 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+                Ferramentas de Análise
+            </h2>
+
+            <div class="flex gap-4 flex-wrap">
+                <button id="btnConflicts" class="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800 transition-all font-semibold shadow-lg hover:shadow-xl flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    ⚠️ Conflitos de Horário
+                    <span id="conflictBadge" class="hidden px-3 py-1 bg-white text-red-700 rounded-full text-sm font-bold"></span>
+                </button>
+
+                <button id="btnWorkload" class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-800 transition-all font-semibold shadow-lg hover:shadow-xl flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    ⏱️ Carga Horária por Dia
+                    <span id="overloadBadge" class="hidden px-3 py-1 bg-yellow-400 text-yellow-900 rounded-full text-sm font-bold">⚠️</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters Section -->
+        <div id="filtersSection" class="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-200 hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <div class="bg-purple-100 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                    </svg>
+                </div>
+                Filtros de Busca
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 mb-6">
+
+                <!-- Nome -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        🔍 Buscar por Nome
+                    </label>
+                    <input type="text" id="nameFilter" placeholder="Digite o nome..." 
+                           class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                </div>
+
+                <!-- Data -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        📅 Data
+                    </label>
+                    <select id="dateFilter" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        <option value="">Todas as datas</option>
+                    </select>
+                </div>
+
+                <!-- Horário -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        ⏰ Horário
+                    </label>
+                    <select id="timeFilter" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        <option value="">Todos os horários</option>
+                    </select>
+                </div>
+
+                <!-- Sala -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        🏛️ Sala
+                    </label>
+                    <select id="roomFilter" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        <option value="">Todas as salas</option>
+                    </select>
+                </div>
+
+                <!-- Aula -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        📚 Disciplina
+                    </label>
+                    <select id="classFilter" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                        <option value="">Todas as disciplinas</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Stats and Actions -->
+            <div class="flex gap-4 flex-wrap items-center justify-between">
+                <div class="flex gap-4 flex-wrap">
+                    <div class="px-6 py-3 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-900 rounded-xl border-2 border-blue-200 shadow-sm">
+                        <span class="font-semibold">Total:</span> <span id="totalEvents" class="font-bold text-xl">0</span>
+                    </div>
+                    <div class="px-6 py-3 bg-gradient-to-r from-green-50 to-green-100 text-green-900 rounded-xl border-2 border-green-200 shadow-sm">
+                        <span class="font-semibold">Exibidos:</span> <span id="filteredEvents" class="font-bold text-xl">0</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 flex-wrap">
+                    <button id="clearFilters" class="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl border-2 border-gray-300 hover:bg-gray-200 transition-all font-semibold shadow-sm hover:shadow-md">
+                        ❌ Limpar Filtros
+                    </button>
+                    <button id="toggleView" class="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all font-semibold shadow-lg hover:shadow-xl">
+                        📊 Ver Grade Semanal
+                    </button>
+                    <button id="exportImage" class="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all font-semibold shadow-lg hover:shadow-xl hidden">
+                        💾 Exportar Grade (PNG)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Weekly Grid View -->
+        <div id="weeklyGridContainer" class="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-200 hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+                    <div class="bg-blue-100 p-2 rounded-lg">
+                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                    Grade Semanal de Horários
+                </h2>
+                <span id="gridFilterInfo" class="text-base font-bold text-gray-600 bg-gray-100 px-6 py-3 rounded-xl border-2 border-gray-200"></span>
+            </div>
+            <div class="overflow-x-auto border-2 rounded-xl">
+                <table id="weeklyGrid"></table>
+            </div>
+        </div>
+
+        <!-- Cards Container -->
+        <div id="cardsContainer" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-24">
+            <div class="bg-white rounded-2xl shadow-lg p-12 max-w-2xl mx-auto">
+                <svg class="w-32 h-32 mx-auto text-gray-300 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <h3 class="text-3xl font-bold text-gray-600 mb-3">Nenhum arquivo carregado</h3>
+                <p class="text-gray-500 text-xl">Carregue um arquivo CSV para visualizar as escalas de professores e monitores</p>
+            </div>
+        </div>
+
+        <!-- No Results State -->
+        <div id="noResultsState" class="hidden text-center py-24">
+            <div class="bg-white rounded-2xl shadow-lg p-12 max-w-2xl mx-auto">
+                <svg class="w-32 h-32 mx-auto text-gray-300 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <h3 class="text-3xl font-bold text-gray-600 mb-3">Nenhum resultado encontrado</h3>
+                <p class="text-gray-500 text-xl">Tente ajustar os filtros para encontrar o que procura</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Conflicts -->
+    <div id="conflictsModal" class="modal">
+        <div class="modal-content">
+            <div class="bg-gradient-to-r from-red-600 to-red-700 text-white p-6 rounded-t-2xl">
+                <span class="close" onclick="document.getElementById('conflictsModal').style.display='none'">&times;</span>
+                <h2 class="text-3xl font-bold flex items-center gap-3">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    Relatório de Conflitos de Horário
+                </h2>
+                <p class="text-red-100 mt-2">Pessoas escaladas para duas aulas simultâneas</p>
+            </div>
+            <div id="conflictsContent" class="p-6 max-h-[70vh] overflow-y-auto scrollbar-thin">
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Workload -->
+    <div id="workloadModal" class="modal">
+        <div class="modal-content">
+            <div class="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-6 rounded-t-2xl">
+                <span class="close" onclick="document.getElementById('workloadModal').style.display='none'">&times;</span>
+                <h2 class="text-3xl font-bold flex items-center gap-3">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Relatório de Carga Horária por Dia
+                </h2>
+                <p class="text-indigo-100 mt-2">Total de horas trabalhadas por pessoa em cada data • ⚠️ Alerta acima de 8h</p>
+            </div>
+            <div id="workloadContent" class="p-6 max-h-[70vh] overflow-y-auto scrollbar-thin">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let groupedEvents = [];
+        let currentFilteredEvents = [];
+        let isGridView = false;
+
+        const classNames = {
+            'M1.1': 'TEORICA PS',
+            'M1.2P': 'PLANTAO',
+            'M1.2S': 'SOBREAVISO',
+            'M2.1': 'ELEITORAL 1',
+            'M2.2': 'ELEITORAL 2',
+            'M3.2': 'PLAN. VIGILANCIA'
+        };
+
+        function getRoleBadgeClass(role) {
+            const roleUpper = role.toUpperCase();
+            if (roleUpper.includes('PROFESSOR COORD')) return 'badge-professor-coord';
+            if (roleUpper.includes('PROFESSOR APROXIMADO')) return 'badge-professor-aproximado';
+            if (roleUpper.includes('PROFESSOR OCORRENCIA') || roleUpper.includes('PROFESSOR OCORRÊNCIA')) return 'badge-professor-ocorrencia';
+            if (roleUpper.includes('PROFESSOR')) return 'badge-professor';
+            if (roleUpper.includes('MONITOR')) return 'badge-monitor';
+            return 'badge-default';
+        }
+
+        function parseTime(timeStr) {
+            const match = timeStr.match(/(\d{2}):(\d{2})/);
+            if (match) {
+                return parseInt(match[1]) * 60 + parseInt(match[2]);
+            }
+            return 0;
+        }
+
+        function minutesToTime(minutes) {
+            const hours = Math.floor(minutes / 60).toString().padStart(2, '0');
+            const mins = (minutes % 60).toString().padStart(2, '0');
+            return `${hours}:${mins}`;
+        }
+
+        function calculateDuration(timeRange) {
+            if (!timeRange || !timeRange.includes('-')) return 0;
+            const parts = timeRange.split('-').map(p => p.trim());
+            if (parts.length !== 2) return 0;
+            const start = parseTime(parts[0]);
+            const end = parseTime(parts[1]);
+            return end - start;
+        }
+
+        function timeRangesOverlap(range1, range2) {
+            if (!range1 || !range2 || !range1.includes('-') || !range2.includes('-')) return false;
+
+            const parts1 = range1.split('-').map(p => p.trim());
+            const parts2 = range2.split('-').map(p => p.trim());
+
+            const start1 = parseTime(parts1[0]);
+            const end1 = parseTime(parts1[1]);
+            const start2 = parseTime(parts2[0]);
+            const end2 = parseTime(parts2[1]);
+
+            return (start1 < end2 && start2 < end1);
+        }
+
+        function detectConflicts() {
+            const conflicts = [];
+            const personSchedule = {};
+
+            allData.forEach(row => {
+                const name = row.Nome?.trim();
+                const date = row.Data;
+                const time = row.Coluna1 || row['Horário'] || '';
+                const sala = row['SALA NOME'];
+                const aula = row.Aula;
+
+                if (!name || !date || !time) return;
+
+                const key = `${name}|${date}`;
+                if (!personSchedule[key]) {
+                    personSchedule[key] = [];
+                }
+                personSchedule[key].push({ time, sala, aula, funcao: row.Funcao });
+            });
+
+            Object.entries(personSchedule).forEach(([key, schedule]) => {
+                const [name, date] = key.split('|');
+
+                for (let i = 0; i < schedule.length; i++) {
+                    for (let j = i + 1; j < schedule.length; j++) {
+                        if (schedule[i].sala !== schedule[j].sala && 
+                            timeRangesOverlap(schedule[i].time, schedule[j].time)) {
+                            conflicts.push({
+                                nome: name,
+                                data: date,
+                                horario1: schedule[i].time,
+                                sala1: schedule[i].sala,
+                                aula1: schedule[i].aula,
+                                horario2: schedule[j].time,
+                                sala2: schedule[j].sala,
+                                aula2: schedule[j].aula,
+                                funcao: schedule[i].funcao
+                            });
+                        }
+                    }
+                }
+            });
+
+            return conflicts;
+        }
+
+        function calculateWorkload() {
+            const workload = {};
+
+            allData.forEach(row => {
+                const name = row.Nome?.trim();
+                const date = row.Data;
+                const time = row.Coluna1 || row['Horário'] || '';
+                const aula = row.Aula;
+                const sala = row['SALA NOME'];
+
+                if (!name || !date || !time) return;
+
+                const key = `${name}|${date}`;
+                if (!workload[key]) {
+                    workload[key] = {
+                        nome: name,
+                        data: date,
+                        totalMinutes: 0,
+                        aulas: []
+                    };
+                }
+
+                const duration = calculateDuration(time);
+                const aulaKey = `${time}|${aula}|${sala}`;
+
+                if (!workload[key].aulas.find(a => a.key === aulaKey)) {
+                    workload[key].totalMinutes += duration;
+                    workload[key].aulas.push({
+                        key: aulaKey,
+                        time,
+                        aula,
+                        sala,
+                        duration
+                    });
+                }
+            });
+
+            return Object.values(workload).sort((a, b) => {
+                if (a.data !== b.data) return a.data.localeCompare(b.data);
+                return b.totalMinutes - a.totalMinutes;
+            });
+        }
+
+        function showConflicts() {
+            const conflicts = detectConflicts();
+            const modal = document.getElementById('conflictsModal');
+            const content = document.getElementById('conflictsContent');
+
+            if (conflicts.length === 0) {
+                content.innerHTML = `
+                    <div class="text-center py-12">
+                        <svg class="w-24 h-24 mx-auto text-green-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <h3 class="text-2xl font-bold text-gray-800 mb-2">✅ Nenhum conflito detectado!</h3>
+                        <p class="text-gray-600 text-lg">Todas as escalas estão sem sobreposição de horários.</p>
+                    </div>
+                `;
+            } else {
+                let html = `
+                    <div class="mb-6 p-4 bg-red-50 border-2 border-red-300 rounded-xl">
+                        <p class="text-red-800 font-bold text-lg">⚠️ ${conflicts.length} conflito(s) detectado(s)</p>
+                        <p class="text-red-600 text-sm mt-1">As pessoas abaixo estão escaladas para aulas simultâneas em salas diferentes</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                `;
+
+                conflicts.forEach(c => {
+                    html += `
+                        <div class="conflict-card rounded-xl p-5 shadow-md">
+                            <div class="flex items-start justify-between mb-3">
+                                <div>
+                                    <h3 class="text-lg font-bold text-red-900">${c.nome}</h3>
+                                    <span class="px-3 py-1 ${getRoleBadgeClass(c.funcao)} text-xs rounded-full mt-1 inline-block">${c.funcao}</span>
+                                </div>
+                                <span class="px-3 py-1 bg-red-800 text-white text-xs font-bold rounded-full">CONFLITO</span>
+                            </div>
+                            <div class="space-y-2 text-sm">
+                                <p class="font-semibold text-red-900">📅 Data: ${c.data}</p>
+                                <div class="bg-white p-3 rounded-lg border border-red-200">
+                                    <p class="font-bold text-red-800">Aula 1:</p>
+                                    <p>⏰ ${c.horario1}</p>
+                                    <p>📚 ${c.aula1} - ${classNames[c.aula1] || c.aula1}</p>
+                                    <p>🏛️ Sala: ${c.sala1}</p>
+                                </div>
+                                <div class="bg-white p-3 rounded-lg border border-red-200">
+                                    <p class="font-bold text-red-800">Aula 2:</p>
+                                    <p>⏰ ${c.horario2}</p>
+                                    <p>📚 ${c.aula2} - ${classNames[c.aula2] || c.aula2}</p>
+                                    <p>🏛️ Sala: ${c.sala2}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+                content.innerHTML = html;
+            }
+
+            modal.style.display = 'block';
+
+            const badge = document.getElementById('conflictBadge');
+            if (conflicts.length > 0) {
+                badge.textContent = conflicts.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function showWorkload() {
+            const workload = calculateWorkload();
+            const modal = document.getElementById('workloadModal');
+            const content = document.getElementById('workloadContent');
+
+            const groupedByDate = {};
+            let overloadCount = 0;
+
+            workload.forEach(w => {
+                if (!groupedByDate[w.data]) {
+                    groupedByDate[w.data] = [];
+                }
+                groupedByDate[w.data].push(w);
+
+                // Contar sobrecargas (mais de 8 horas = 480 minutos)
+                if (w.totalMinutes > 480) {
+                    overloadCount++;
+                }
+            });
+
+            let html = '';
+
+            // Alerta geral se houver sobrecargas
+            if (overloadCount > 0) {
+                html += `
+                    <div class="mb-6 p-4 bg-yellow-50 border-3 border-yellow-400 rounded-xl">
+                        <p class="text-yellow-800 font-bold text-lg flex items-center gap-2">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            ⚠️ ${overloadCount} pessoa(s) com mais de 8 horas em um dia
+                        </p>
+                        <p class="text-yellow-700 text-sm mt-1">Cards destacados em amarelo indicam carga horária acima do recomendado</p>
+                    </div>
+                `;
+            }
+
+            Object.entries(groupedByDate).sort().forEach(([date, people]) => {
+                html += `
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            ${date} - ${getDayOfWeek(date)}
+                        </h3>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                `;
+
+                people.forEach(p => {
+                    const hours = Math.floor(p.totalMinutes / 60);
+                    const minutes = p.totalMinutes % 60;
+                    const timeStr = `${hours}h${minutes > 0 ? minutes.toString().padStart(2, '0') + 'min' : ''}`;
+                    const isOverload = p.totalMinutes > 480; // Mais de 8 horas
+                    const cardClass = isOverload ? 'workload-card-overload' : 'workload-card';
+                    const timeColor = isOverload ? 'text-orange-700' : 'text-indigo-700';
+
+                    html += `
+                        <div class="${cardClass} rounded-xl p-4 shadow-md">
+                            <h4 class="font-bold text-lg ${isOverload ? 'text-orange-900' : 'text-indigo-900'} mb-2">${p.nome}</h4>
+                            <div class="flex items-center gap-2 mb-3">
+                                <svg class="w-5 h-5 ${isOverload ? 'text-orange-600' : 'text-indigo-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span class="text-2xl font-bold ${timeColor}">${timeStr}</span>
+                                ${isOverload ? '<span class="px-2 py-1 bg-orange-600 text-white text-xs font-bold rounded-full overload-badge">⚠️ SOBRECARGA</span>' : ''}
+                            </div>
+                            <div class="space-y-1 text-xs">
+                                ${p.aulas.map(a => {
+                                    const aulaDuration = Math.floor(a.duration / 60);
+                                    const aulaMinutes = a.duration % 60;
+                                    const aulaDurationStr = `${aulaDuration}h${aulaMinutes > 0 ? aulaMinutes.toString().padStart(2, '0') + 'min' : ''}`;
+                                    return `
+                                    <div class="bg-white p-2 rounded border ${isOverload ? 'border-orange-300' : 'border-indigo-200'}">
+                                        <p class="font-semibold">${a.time} <span class="text-gray-500">(${aulaDurationStr})</span></p>
+                                        <p class="text-gray-600">${a.aula} - Sala ${a.sala}</p>
+                                    </div>
+                                `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += '</div></div>';
+            });
+
+            content.innerHTML = html;
+            modal.style.display = 'block';
+
+            // Atualizar badge de sobrecarga
+            const overloadBadge = document.getElementById('overloadBadge');
+            if (overloadCount > 0) {
+                overloadBadge.textContent = `⚠️ ${overloadCount}`;
+                overloadBadge.classList.remove('hidden');
+            } else {
+                overloadBadge.classList.add('hidden');
+            }
+        }
+
+        function getDayOfWeek(dateStr) {
+            const [day, month, year] = dateStr.split('/');
+            const date = new Date(year, month - 1, day);
+            const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+            return days[date.getDay()];
+        }
+
+        function getShortDayOfWeek(dateStr) {
+            const [day, month, year] = dateStr.split('/');
+            const date = new Date(year, month - 1, day);
+            const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+            return days[date.getDay()];
+        }
+
+        function groupEvents(data) {
+            const groups = {};
+
+            data.forEach(row => {
+                const horario = row.Coluna1 || row['Horário'] || '';
+                const key = `${row.Data}|${horario}|${row.Aula}|${row['SALA NOME']}`;
+
+                if (!groups[key]) {
+                    groups[key] = {
+                        data: row.Data,
+                        aula: row.Aula,
+                        aulaDescricao: classNames[row.Aula] || row.Aula,
+                        sala: row['SALA NOME'],
+                        horario: horario,
+                        equipe: []
+                    };
+                }
+
+                if (row.Nome && row.Nome.trim()) {
+                    groups[key].equipe.push({
+                        nome: row.Nome.trim(),
+                        funcao: (row.Funcao || 'NÃO ESPECIFICADO').trim()
+                    });
+                }
+            });
+
+            return Object.values(groups).map(group => {
+                return {
+                    ...group,
+                    diaSemana: getDayOfWeek(group.data)
+                };
+            }).sort((a, b) => {
+                if (a.data !== b.data) {
+                    const [dA, mA, yA] = a.data.split('/');
+                    const [dB, mB, yB] = b.data.split('/');
+                    return new Date(yA, mA-1, dA) - new Date(yB, mB-1, dB);
+                }
+                if (a.horario !== b.horario) {
+                    return a.horario.localeCompare(b.horario);
+                }
+                return a.sala.localeCompare(b.sala);
+            });
+        }
+
+        function renderWeeklyGrid() {
+            if (currentFilteredEvents.length === 0) {
+                return;
+            }
+
+            const allDates = [...new Set(currentFilteredEvents.map(e => e.data))].sort((a, b) => {
+                const [dA, mA, yA] = a.split('/');
+                const [dB, mB, yB] = b.split('/');
+                return new Date(yA, mA-1, dA) - new Date(yB, mB-1, dB);
+            });
+
+            const allTimes = [...new Set(currentFilteredEvents.map(e => e.horario))].filter(t => t && t.trim()).sort();
+
+            const grid = {};
+            allTimes.forEach(time => {
+                grid[time] = {};
+                allDates.forEach(date => {
+                    grid[time][date] = [];
+                });
+            });
+
+            currentFilteredEvents.forEach(event => {
+                if (event.horario && event.horario.trim() && grid[event.horario] && grid[event.horario][event.data]) {
+                    grid[event.horario][event.data].push(event);
+                }
+            });
+
+            let html = '<thead><tr>';
+            html += '<th class="grid-header" style="min-width: 140px; font-size: 15px;">⏰ HORÁRIO</th>';
+            allDates.forEach(date => {
+                html += `<th class="grid-header" style="min-width: 180px; font-size: 14px;">${getShortDayOfWeek(date)}<br><span style="font-size: 13px;">${date}</span></th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            allTimes.forEach(time => {
+                html += '<tr>';
+                html += `<td class="grid-cell time-cell"><strong style="font-size: 15px;">${time}</strong></td>`;
+
+                allDates.forEach(date => {
+                    const events = grid[time][date];
+                    html += '<td class="grid-cell event-cell">';
+
+                    if (events && events.length > 0) {
+                        events.forEach(e => {
+                            html += `<div style="margin-bottom: 10px;">`;
+                            html += `<span class="event-badge">${e.aula} - ${e.aulaDescricao}</span>`;
+                            html += `<div class="event-info">📍 Sala: ${e.sala}</div>`;
+                            html += `</div>`;
+                        });
+                    } else {
+                        html += '<span style="color: #d1d5db; font-size: 20px;">—</span>';
+                    }
+
+                    html += '</td>';
+                });
+
+                html += '</tr>';
+            });
+
+            html += '</tbody>';
+
+            document.getElementById('weeklyGrid').innerHTML = html;
+
+            const nameFilter = document.getElementById('nameFilter').value;
+            let filterText = '';
+            if (nameFilter) {
+                filterText = `📋 Filtrado: ${nameFilter.toUpperCase()} | ${currentFilteredEvents.length} eventos`;
+            } else {
+                filterText = `📊 Mostrando ${currentFilteredEvents.length} eventos`;
+            }
+            document.getElementById('gridFilterInfo').textContent = filterText;
+        }
+
+        function toggleView() {
+            isGridView = !isGridView;
+            const toggleBtn = document.getElementById('toggleView');
+            const exportBtn = document.getElementById('exportImage');
+            const gridContainer = document.getElementById('weeklyGridContainer');
+            const cardsContainer = document.getElementById('cardsContainer');
+            const noResultsState = document.getElementById('noResultsState');
+
+            if (isGridView) {
+                gridContainer.classList.remove('hidden');
+                cardsContainer.classList.add('hidden');
+                noResultsState.classList.add('hidden');
+                exportBtn.classList.remove('hidden');
+                toggleBtn.textContent = '🗂️ Ver Cards';
+                renderWeeklyGrid();
+            } else {
+                gridContainer.classList.add('hidden');
+                cardsContainer.classList.remove('hidden');
+                exportBtn.classList.add('hidden');
+                toggleBtn.textContent = '📊 Ver Grade Semanal';
+                if (currentFilteredEvents.length === 0) {
+                    noResultsState.classList.remove('hidden');
+                }
+            }
+        }
+
+        function exportAsImage() {
+            const gridElement = document.getElementById('weeklyGridContainer');
+            const nameFilter = document.getElementById('nameFilter').value;
+
+            html2canvas(gridElement, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false
+            }).then(canvas => {
+                const link = document.createElement('a');
+                let filename = 'grade_semanal';
+                if (nameFilter) {
+                    filename = `grade_${nameFilter.toLowerCase().replace(/\s+/g, '_')}`;
+                }
+                link.download = `${filename}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+
+        function createCard(event) {
+            const rolePriority = {
+                'PROFESSOR': 1,
+                'PROFESSOR COORD CIDADE': 2,
+                'PROFESSOR COORD SALA': 3,
+                'PROFESSOR CIDADE': 4,
+                'PROFESSOR SALA': 5,
+                'PROFESSOR APROXIMADO': 6,
+                'PROFESSOR OCORRÊNCIA': 7,
+                'PROFESSOR OCORRENCIA': 7,
+                'PROFESSOR VOLANTE': 8,
+                'MONITOR': 9,
+                'MONITOR CIDADE': 10,
+                'MONITOR SALA': 11,
+                'MONITOR VOLANTE': 12,
+                'MONITOR (PF)': 13
+            };
+
+            const sortedEquipe = [...event.equipe].sort((a, b) => {
+                const prioA = rolePriority[a.funcao] || 99;
+                const prioB = rolePriority[b.funcao] || 99;
+                if (prioA !== prioB) return prioA - prioB;
+                return a.nome.localeCompare(b.nome);
+            });
+
+            const equipeHTML = sortedEquipe.map(membro => `
+                <div class="flex items-start gap-3 py-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition rounded-lg px-3">
+                    <span class="px-4 py-2 text-xs font-bold rounded-lg ${getRoleBadgeClass(membro.funcao)} whitespace-nowrap shadow-sm">
+                        ${membro.funcao}
+                    </span>
+                    <span class="text-sm text-gray-800 flex-1 font-semibold pt-2">${membro.nome}</span>
+                </div>
+            `).join('');
+
+            return `
+                <div class="bg-white rounded-2xl card-shadow overflow-hidden border-2 border-gray-200 hover:border-blue-300 transition-all">
+                    <div class="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="px-4 py-1.5 bg-white/20 backdrop-blur-sm rounded-xl text-sm font-bold border border-white/30">${event.aula}</span>
+                                </div>
+                                <h3 class="text-xl font-bold mt-2">${event.aulaDescricao}</h3>
+                                <p class="text-blue-100 text-base mt-2 flex items-center gap-2 font-semibold">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                    </svg>
+                                    ${event.sala}
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-base font-bold flex items-center justify-end gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                    ${event.data}
+                                </p>
+                                <p class="text-sm text-blue-100 mt-1">${event.diaSemana}</p>
+                                <p class="text-base font-bold text-yellow-300 mt-3 flex items-center justify-end gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    ${event.horario || 'Não especificado'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div class="flex items-center justify-between mb-5">
+                            <h4 class="text-base font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                </svg>
+                                Equipe Escalada
+                            </h4>
+                            <span class="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold border-2 border-blue-200">
+                                ${event.equipe.length} ${event.equipe.length === 1 ? 'pessoa' : 'pessoas'}
+                            </span>
+                        </div>
+                        <div class="space-y-2 max-h-96 overflow-y-auto scrollbar-thin">
+                            ${equipeHTML}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCards() {
+            const nameSearch = document.getElementById('nameFilter').value.toLowerCase();
+            const dateFilter = document.getElementById('dateFilter').value;
+            const timeFilter = document.getElementById('timeFilter').value;
+            const roomFilter = document.getElementById('roomFilter').value;
+            const classFilter = document.getElementById('classFilter').value;
+
+            const filtered = groupedEvents.filter(event => {
+                if (nameSearch) {
+                    const teamNames = event.equipe.map(m => m.nome.toLowerCase());
+                    if (!teamNames.some(name => name.includes(nameSearch))) {
+                        return false;
+                    }
+                }
+                if (dateFilter && event.data !== dateFilter) return false;
+                if (timeFilter && event.horario !== timeFilter) return false;
+                if (roomFilter && event.sala !== roomFilter) return false;
+                if (classFilter && event.aula !== classFilter) return false;
+                return true;
+            });
+
+            currentFilteredEvents = filtered;
+
+            const container = document.getElementById('cardsContainer');
+            const emptyState = document.getElementById('emptyState');
+            const noResultsState = document.getElementById('noResultsState');
+
+            emptyState.classList.add('hidden');
+            noResultsState.classList.add('hidden');
+
+            if (filtered.length === 0 && !isGridView) {
+                container.innerHTML = '';
+                noResultsState.classList.remove('hidden');
+            } else {
+                container.innerHTML = filtered.map(event => createCard(event)).join('');
+            }
+
+            document.getElementById('totalEvents').textContent = groupedEvents.length;
+            document.getElementById('filteredEvents').textContent = filtered.length;
+
+            if (isGridView) {
+                renderWeeklyGrid();
+            }
+        }
+
+        function populateFilters() {
+            const dates = [...new Set(groupedEvents.map(e => e.data))].sort((a, b) => {
+                const [dA, mA, yA] = a.split('/');
+                const [dB, mB, yB] = b.split('/');
+                return new Date(yA, mA-1, dA) - new Date(yB, mB-1, dB);
+            });
+
+            const times = [...new Set(groupedEvents.map(e => e.horario))].filter(t => t && t.trim()).sort();
+            const rooms = [...new Set(groupedEvents.map(e => e.sala))].sort();
+            const classes = [...new Set(groupedEvents.map(e => e.aula))].sort();
+
+            document.getElementById('dateFilter').innerHTML = '<option value="">Todas as datas</option>' +
+                dates.map(d => `<option value="${d}">${d} - ${getDayOfWeek(d)}</option>`).join('');
+
+            document.getElementById('timeFilter').innerHTML = '<option value="">Todos os horários</option>' +
+                times.map(t => `<option value="${t}">${t}</option>`).join('');
+
+            document.getElementById('roomFilter').innerHTML = '<option value="">Todas as salas</option>' +
+                rooms.map(r => `<option value="${r}">${r}</option>`).join('');
+
+            document.getElementById('classFilter').innerHTML = '<option value="">Todas as disciplinas</option>' +
+                classes.map(c => `<option value="${c}">${c} - ${classNames[c] || c}</option>`).join('');
+        }
+
+        function clearAllFilters() {
+            document.getElementById('nameFilter').value = '';
+            document.getElementById('dateFilter').value = '';
+            document.getElementById('timeFilter').value = '';
+            document.getElementById('roomFilter').value = '';
+            document.getElementById('classFilter').value = '';
+            renderCards();
+        }
+
+        function processCSV(csvContent) {
+            Papa.parse(csvContent, {
+                header: true,
+                delimiter: ';',
+                skipEmptyLines: true,
+                complete: function(results) {
+                    allData = results.data.filter(row => row.Data && row.Aula && row.Nome);
+
+                    if (allData.length === 0) {
+                        alert('❌ Nenhum dado válido encontrado no arquivo CSV.');
+                        return;
+                    }
+
+                    groupedEvents = groupEvents(allData);
+                    document.getElementById('filtersSection').classList.remove('hidden');
+                    document.getElementById('analysisSection').classList.remove('hidden');
+                    populateFilters();
+                    renderCards();
+
+                    // Auto-detect conflicts and overloads
+                    const conflicts = detectConflicts();
+                    if (conflicts.length > 0) {
+                        const badge = document.getElementById('conflictBadge');
+                        badge.textContent = conflicts.length;
+                        badge.classList.remove('hidden');
+                    }
+
+                    const workload = calculateWorkload();
+                    const overloads = workload.filter(w => w.totalMinutes > 480);
+                    if (overloads.length > 0) {
+                        const badge = document.getElementById('overloadBadge');
+                        badge.textContent = `⚠️ ${overloads.length}`;
+                        badge.classList.remove('hidden');
+                    }
+                },
+                error: function(error) {
+                    alert('❌ Erro ao processar CSV: ' + error.message);
+                }
+            });
+        }
+
+        document.getElementById('csvFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('fileStatus').innerHTML = 
+                    `<svg class="w-6 h-6 text-blue-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span class="font-semibold">Carregando ${file.name}...</span>`;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    processCSV(e.target.result);
+                    document.getElementById('fileStatus').innerHTML = 
+                        `<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span class="text-green-700 font-bold">✅ ${file.name} carregado com sucesso!</span>`;
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        document.getElementById('nameFilter').addEventListener('input', renderCards);
+        document.getElementById('dateFilter').addEventListener('change', renderCards);
+        document.getElementById('timeFilter').addEventListener('change', renderCards);
+        document.getElementById('roomFilter').addEventListener('change', renderCards);
+        document.getElementById('classFilter').addEventListener('change', renderCards);
+        document.getElementById('clearFilters').addEventListener('click', clearAllFilters);
+        document.getElementById('toggleView').addEventListener('click', toggleView);
+        document.getElementById('exportImage').addEventListener('click', exportAsImage);
+        document.getElementById('btnConflicts').addEventListener('click', showConflicts);
+        document.getElementById('btnWorkload').addEventListener('click', showWorkload);
+
+        window.onclick = function(event) {
+            const conflictsModal = document.getElementById('conflictsModal');
+            const workloadModal = document.getElementById('workloadModal');
+            if (event.target == conflictsModal) {
+                conflictsModal.style.display = "none";
+            }
+            if (event.target == workloadModal) {
+                workloadModal.style.display = "none";
+            }
+        }
+    </script>
+
+</body>
+</html>
