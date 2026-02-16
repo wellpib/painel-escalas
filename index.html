@@ -1107,6 +1107,27 @@
             });
         }
 
+        async function carregarCSVAutomatico() {
+    try {
+        const resp = await fetch('escalas.csv', { cache: 'no-store' });
+
+        if (!resp.ok) {
+            console.log('escalas.csv não encontrado automaticamente.');
+            return;
+        }
+
+        const texto = await resp.text();
+
+        document.getElementById('fileStatus').innerHTML =
+            '<span class="text-green-700 font-bold">✅ escalas.csv carregado automaticamente!</span>';
+
+        processCSV(texto);
+
+    } catch (err) {
+        console.log('Erro ao carregar CSV automático:', err);
+    }
+}
+
         document.getElementById('csvFileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
@@ -1149,7 +1170,9 @@
             if (event.target == workloadModal) {
                 workloadModal.style.display = "none";
             }
-        }
+        };
+    
+    carregarCSVAutomatico();
     </script>
 
 </body>
